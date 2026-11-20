@@ -104,6 +104,16 @@ export default function RegisterRoles() {
     queueMicrotask(() => {
       void loadBlockchainData()
     })
+
+    if (window.ethereum) {
+      const handleAccountsChanged = () => {
+        void loadBlockchainData()
+      }
+      window.ethereum.on('accountsChanged', handleAccountsChanged)
+      return () => {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged)
+      }
+    }
   }, [])
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -245,40 +255,71 @@ export default function RegisterRoles() {
           </div>
         </div>
 
-        {/* Owner Warning */}
-        {!isOwner && (
-          <div className="mb-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-6 shadow-sm dark:bg-red-500/15">
-            <div className="flex items-start">
-              <div className="shrink-0">
-                <svg className="h-6 w-6 text-destructive" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        {/* Consortium Status & Role Banner */}
+        <div className={`mb-6 rounded-2xl border p-5 shadow-sm ${
+          isOwner 
+            ? 'border-emerald-500/30 bg-emerald-500/10 dark:bg-emerald-500/15'
+            : 'border-blue-500/30 bg-blue-500/10 dark:bg-blue-500/15'
+        }`}>
+          <div className="flex items-start">
+            <div className="shrink-0 mt-0.5">
+              {isOwner ? (
+                <svg className="h-5 w-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
-              </div>
-              <div className="ml-3 flex-1">
-                <h3 className="mb-2 text-lg font-semibold text-foreground">Owner access required</h3>
-                <p className="mb-2 text-sm text-muted-foreground">
-                  Only the contract owner can register new participants.
-                </p>
-                <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-                  <div className="flex items-center">
-                    <svg className="mr-2 h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span className="font-semibold text-foreground">Contract owner:</span>
-                    <span className="ml-1 font-mono">{contractOwner || 'Loading...'}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <svg className="mr-2 h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                    <span className="font-semibold text-foreground">Your account:</span>
-                    <span className="ml-1 font-mono">{currentAccount}</span>
-                  </div>
+              ) : (
+                <svg className="h-5 w-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              )}
+            </div>
+            <div className="ml-3 flex-1">
+              <h3 className="text-base font-semibold text-foreground">
+                {isOwner ? 'Contract Owner Authenticated' : 'Consortium Active — 4 / 4 Core Roles Initialized'}
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {isOwner 
+                  ? 'You are signed in as the Contract Owner. You can register new participant addresses.'
+                  : 'All four essential supply chain roles (Supplier, Producer, Distributor, Retailer) are pre-registered on the blockchain for demonstration. To add new participants, connect as Owner.'}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
+                <div>
+                  <span className="font-semibold text-foreground">Contract Owner: </span>
+                  <span className="font-mono">{contractOwner || 'Loading...'}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-foreground">Active Wallet: </span>
+                  <span className="font-mono">{currentAccount || 'Not connected'}</span>
                 </div>
               </div>
+              {!isOwner && (
+                <div className="mt-3">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        if (window.ethereum) {
+                          await window.ethereum.request({
+                            method: 'wallet_requestPermissions',
+                            params: [{ eth_accounts: {} }],
+                          })
+                          await loadBlockchainData()
+                        }
+                      } catch (e) {
+                        console.error('Failed to switch account', e)
+                      }
+                    }}
+                    className="text-xs font-medium"
+                  >
+                    Switch to Owner Wallet in MetaMask
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
-        )}
+        </div>
 
         {/* Registration Form */}
         <Card className="mb-6 shadow-sm">
