@@ -1,0 +1,9 @@
+{
+  "networks": {
+    "1337": {
+      "SupplyChain": {
+        "address": "0x71D74806a0c8c18e5db18A27a424a072E522E3D4"
+      }
+    }
+  }
+}
