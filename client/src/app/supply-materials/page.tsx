@@ -94,10 +94,22 @@ export default function SupplyMaterials() {
       }
       const account = await getActiveAccount()
       setCurrentAccount(account)
+
+      const product = (await supplyChain.methods.ProductStock(chainId).call()) as Record<string, unknown>
+      const currentStage = Number(product.stage ?? 0)
+      if (currentStage !== 0) {
+        const stageNames = ['Created', 'Processing', 'In Transit', 'For Sale', 'Sold']
+        showNotification(
+          `Product #${chainId} is already in '${stageNames[currentStage] || 'Unknown'}' stage. Step 1 (Supply) can only be called on newly Created products.`,
+          'error'
+        )
+        return
+      }
+
       const receipt = await supplyChain.methods.supplyProduct(chainId).send({ from: account })
       if (receipt) {
         void loadBlockchainData()
-        showNotification('Supplier step recorded.', 'success')
+        showNotification('Supplier step recorded successfully.', 'success')
       }
     } catch (err: unknown) {
       console.error('Transaction error:', err)
@@ -120,10 +132,22 @@ export default function SupplyMaterials() {
       }
       const account = await getActiveAccount()
       setCurrentAccount(account)
+
+      const product = (await supplyChain.methods.ProductStock(chainId).call()) as Record<string, unknown>
+      const currentStage = Number(product.stage ?? 0)
+      if (currentStage !== 1) {
+        const stageNames = ['Created', 'Processing', 'In Transit', 'For Sale', 'Sold']
+        showNotification(
+          `Product #${chainId} is in '${stageNames[currentStage] || 'Unknown'}' stage. Step 2 (Manufacture) can only be called when materials are in 'Processing' (Step 1 completed).`,
+          'error'
+        )
+        return
+      }
+
       const receipt = await supplyChain.methods.processProduct(chainId).send({ from: account })
       if (receipt) {
         void loadBlockchainData()
-        showNotification('Producer step recorded.', 'success')
+        showNotification('Producer step recorded successfully.', 'success')
       }
     } catch (err: unknown) {
       console.error('Transaction error:', err)
@@ -146,10 +170,22 @@ export default function SupplyMaterials() {
       }
       const account = await getActiveAccount()
       setCurrentAccount(account)
+
+      const product = (await supplyChain.methods.ProductStock(chainId).call()) as Record<string, unknown>
+      const currentStage = Number(product.stage ?? 0)
+      if (currentStage !== 2) {
+        const stageNames = ['Created', 'Processing', 'In Transit', 'For Sale', 'Sold']
+        showNotification(
+          `Product #${chainId} is in '${stageNames[currentStage] || 'Unknown'}' stage. Step 3 (Distribute) can only be called when product is 'In Transit' (Step 2 completed).`,
+          'error'
+        )
+        return
+      }
+
       const receipt = await supplyChain.methods.distributeProduct(chainId).send({ from: account })
       if (receipt) {
         void loadBlockchainData()
-        showNotification('Distributor step recorded.', 'success')
+        showNotification('Distributor step recorded successfully.', 'success')
       }
     } catch (err: unknown) {
       console.error('Transaction error:', err)
@@ -172,10 +208,22 @@ export default function SupplyMaterials() {
       }
       const account = await getActiveAccount()
       setCurrentAccount(account)
+
+      const product = (await supplyChain.methods.ProductStock(chainId).call()) as Record<string, unknown>
+      const currentStage = Number(product.stage ?? 0)
+      if (currentStage !== 3) {
+        const stageNames = ['Created', 'Processing', 'In Transit', 'For Sale', 'Sold']
+        showNotification(
+          `Product #${chainId} is in '${stageNames[currentStage] || 'Unknown'}' stage. It must be delivered by distributor (Step 3: Distribute) before listing for sale.`,
+          'error'
+        )
+        return
+      }
+
       const receipt = await supplyChain.methods.listForSale(chainId).send({ from: account })
       if (receipt) {
         void loadBlockchainData()
-        showNotification('Seller listing recorded.', 'success')
+        showNotification('Seller listing recorded successfully.', 'success')
       }
     } catch (err: unknown) {
       console.error('Transaction error:', err)
@@ -198,10 +246,49 @@ export default function SupplyMaterials() {
       }
       const account = await getActiveAccount()
       setCurrentAccount(account)
+
+      // Pre-flight check on product status to prevent EVM revert
+      const product = (await supplyChain.methods.ProductStock(chainId).call()) as Record<string, unknown>
+      const currentStage = Number(product.stage ?? 0)
+      const currentSellerId = Number(product.sellerId ?? 0)
+
+      if (currentStage === 4) {
+        showNotification(`Product #${chainId} has already been marked as Sold!`, 'info')
+        return
+      }
+
+      if (currentStage !== 3) {
+        const stageNames = ['Created', 'Processing', 'In Transit', 'For Sale', 'Sold']
+        showNotification(
+          `Product #${chainId} is in '${stageNames[currentStage] || 'Unknown'}' stage. It must be in 'For Sale' (Step 3 completed) before it can be sold.`,
+          'error'
+        )
+        return
+      }
+
+      // Check if caller is registered seller
+      const mySellerId = Number(await supplyChain.methods.findSeller(account).call())
+      if (mySellerId === 0) {
+        showNotification('Access restricted: Connected account is not a registered Seller/Retailer.', 'error')
+        return
+      }
+
+      // If product has not been listed by a seller yet (Step 4 was skipped), list it first automatically
+      if (currentSellerId === 0) {
+        showNotification('Product not listed yet. Recording Seller listing (Step 4) first...', 'info')
+        await supplyChain.methods.listForSale(chainId).send({ from: account })
+      } else if (currentSellerId !== mySellerId) {
+        showNotification(
+          `Wrong seller: This product was listed by Seller #${currentSellerId}. Connected account is Seller #${mySellerId}.`,
+          'error'
+        )
+        return
+      }
+
       const receipt = await supplyChain.methods.markProductSold(chainId).send({ from: account })
       if (receipt) {
         void loadBlockchainData()
-        showNotification('Product marked as sold.', 'success')
+        showNotification('Product successfully marked as Sold!', 'success')
       }
     } catch (err: unknown) {
       console.error('Transaction error:', err)
